@@ -26,7 +26,7 @@ The pipeline follows a three-step process:
 
     ```bash
     git clone <repository_url>
-    cd python-auto-chunker
+    cd auto-chunker
     ```
 
     _(Replace `<repository_url>` with the actual URL if this were a public repo)_
@@ -79,11 +79,11 @@ For convenience, you can create a shell alias or function in your `.zshrc` or `.
 
 ```bash
 sop-gpt() {
-  python3 /path/to/your/python-auto-chunker/pipeline.py "$@"
+  python3 /path/to/your/auto-chunker/pipeline.py "$@"
 }
 ```
 
-_(Replace `/path/to/your/python-auto-chunker/` with the actual path to the project directory)_
+_(Replace `/path/to/your/auto-chunker/` with the actual path to the project directory)_
 
 After adding this to your shell configuration, reload your shell or run `source ~/.zshrc` (or `source ~/.bashrc`). You can then run the pipeline from anywhere:
 
