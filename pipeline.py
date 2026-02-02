@@ -38,7 +38,7 @@ def main():
     parser.add_argument("input_file", help="The large .md or .txt file to process")
     parser.add_argument("--chunk_words", type=int, default=1800)
     parser.add_argument("--chunk_chars", type=int)
-    parser.add_argument("--summary_model", default="gpt-4.1-mini")
+    parser.add_argument("--summary_model", default="gpt-4.1")
     parser.add_argument("--merge_model", default="gpt-5.1")
     parser.add_argument("--final_output", default=None, help="Final SOP output file (defaults to <input>_SOP.md)")
     parser.add_argument("--verbose", action="store_true")

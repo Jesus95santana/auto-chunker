@@ -1,13 +1,18 @@
 import os
+import sys
 import argparse
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from openai import OpenAI
+from litellm import completion
+from litellm.exceptions import AuthenticationError as LiteLLMAuthError
+from openai import AuthenticationError as OpenAIAuthError
 
 load_dotenv()
+ENV_VARS = dotenv_values()
 # ----------------------------
 # CONFIG
 # ----------------------------
-DEFAULT_MODEL = "gpt-4.1-mini"  # cheap & great for per-chunk summaries
+DEFAULT_MODEL = "gpt-4.1"  # cheap & great for per-chunk summaries
 SUMMARY_PROMPT = """You are a summarization assistant.
 
 Summarize the following content accurately and thoroughly.
@@ -19,6 +24,75 @@ Return a clean, organized summary:
 - No hallucinated steps
 - No assumptions
 """
+
+
+def get_litellm_api_key():
+    # Prefer .env's LITELLM_API_KEY; fall back to env (zshrc).
+    return ENV_VARS.get("LITELLM_API_KEY") or os.getenv("LITELLM_API_KEY")
+
+
+def get_openai_api_key():
+    # Prefer .env's OPENAI_API_KEY; fall back to env (zshrc)
+    return ENV_VARS.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+
+
+def prompt_fallback():
+    answer = input("\n⚠️  LiteLLM failed authentication.\nProceed using OpenAI API instead? [y/N]: ").strip().lower()
+    return answer == "y"
+
+
+def summarize_with_litellm(model, text):
+    api_key = get_litellm_api_key()
+
+    response = completion(
+        model=model,
+        api_key=api_key,
+        api_base="https://litellm.spinen.net/v1",
+        messages=[
+            {"role": "system", "content": SUMMARY_PROMPT},
+            {"role": "user", "content": text},
+        ],
+        temperature=0.2,
+    )
+
+    return response.choices[0].message.content
+
+
+def summarize_with_openai(client, model, text):
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": SUMMARY_PROMPT},
+            {"role": "user", "content": text},
+        ],
+        temperature=0.2,
+    )
+    return response.choices[0].message.content
+
+
+def summarize_text(client, model, text):
+    # Always try LiteLLM first
+    try:
+        return summarize_with_litellm(model, text)
+
+    except LiteLLMAuthError as e:
+        print(f"\n❌ LiteLLM auth error: {e}")
+
+    except Exception as e:
+        print(f"\n❌ LiteLLM error: {e}")
+
+    # Ask before falling back to OpenAI
+    if not prompt_fallback():
+        print("Aborted by user.")
+        sys.exit(1)
+
+    # Fallback to OpenAI using OPENAI_API_KEY
+    try:
+        return summarize_with_openai(client, model, text)
+
+    except OpenAIAuthError as e:
+        print(f"\n❌ OpenAI auth error: {e}")
+        sys.exit(1)
 
 
 # ----------------------------
@@ -41,16 +115,6 @@ def save_summary(text, output_dir, index):
 
 
 # ----------------------------
-# Summarization logic
-# ----------------------------
-def summarize_text(client, model, text):
-    response = client.chat.completions.create(
-        model=model, messages=[{"role": "system", "content": SUMMARY_PROMPT}, {"role": "user", "content": text}], temperature=0.2
-    )
-    return response.choices[0].message.content
-
-
-# ----------------------------
 # MAIN
 # ----------------------------
 def main():
@@ -61,7 +125,12 @@ def main():
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    openai_key = get_openai_api_key()
+    if not openai_key:
+        print("OPENAI_API_KEY not found. Set it in your .env file or export it in your shell environment.")
+        sys.exit(1)
+
+    client = OpenAI(api_key=openai_key)
 
     chunk_files = sorted([f for f in os.listdir(args.chunks) if f.endswith(".md")])
 
